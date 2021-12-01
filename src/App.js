@@ -7,23 +7,26 @@ import { TOKEN_PROGRAM_ID, Token } from "@solana/spl-token";
 function App() {
     // State
     const testMasterSecretKey = 'EGeG7Q6j8DedNW1ayFJW6a1eqUYCVobJ3CkKMxGPUb3vZLfHJhYDy2YrY8bwrNy2kZvqRPduFn8KXUUxJtqEPB3'
-    const testMasterRecoverKey = '5rfnMoHXULH1fvcvdeBNwNLCJjDrNjd5UoqQZiNxzxJ1DFXTAWj8HRJNzxh4kaoeSnjZvaGZ8yLYAvuX7W1SEfxQ'
+    const testRecoverSecretKey = '5rfnMoHXULH1fvcvdeBNwNLCJjDrNjd5UoqQZiNxzxJ1DFXTAWj8HRJNzxh4kaoeSnjZvaGZ8yLYAvuX7W1SEfxQ'
     const bicSpl = null
     const [newKeypair, setNewKeypair] = useState({})
-    const testMasterSecretKeyWallet = new Wallet(web3.Keypair.fromSecretKey(Base58.decode(testMasterSecretKey)))
-    const testMasterRecoverKeyWallet = new Wallet(web3.Keypair.fromSecretKey(Base58.decode(testMasterRecoverKey)))
+    const testMasterWallet = new Wallet(web3.Keypair.fromSecretKey(Base58.decode(testMasterSecretKey)))
+    const testRecoverWallet = new Wallet(web3.Keypair.fromSecretKey(Base58.decode(testRecoverSecretKey)))
     const connection = new web3.Connection("http://127.0.0.1:8899/")
-    // const testMasterSecretKeyProvider = new Provider(connection, testMasterSecretKeyWallet, {})
+    // const testMasterKeyProvider = new Provider(connection, testMasterWallet, {})
+
+    // const user1Wallet = new Wallet(web3.Keypair.fromSecretKey(Base58.decode('4EHnNBG9jfvU2RE5bgXd9Fzn6bbKTnDdvVeQmJScpLTFyMyAy7QcLdnLuxEz7fqJLbHdZg6pZggGmumPX8hbA5Qg')))
+    // const user2Wallet = new Wallet(web3.Keypair.fromSecretKey(Base58.decode('4TQEhMh7ujM8yoEKxEv6d5dWciCPhErAMP2FuLS2xTX9B3VrwZUDJVubVVby46yQGkcmWD2vvcv7pyrQDJxu96yb')))
+    const bicPublicKey = 'DM6TvKdR7izbUqEb9xEdA77he9t6vimiKZT6Lqvt24YV'
 
     // Logic function
-    const bicPublicKey = 'DM6TvKdR7izbUqEb9xEdA77he9t6vimiKZT6Lqvt24YV'
     const createBic = async () => {
         const mint = web3.Keypair.generate();
         console.log('mint: ', mint.publicKey.toBase58())
         console.log('lamport: ', await connection.getMinimumBalanceForRentExemption(82))
         let instructions = [
             web3.SystemProgram.createAccount({
-                fromPubkey: testMasterSecretKeyWallet.publicKey,
+                fromPubkey: testRecoverWallet.publicKey,
                 newAccountPubkey: mint.publicKey,
                 space: 82,
                 lamports: await connection.getMinimumBalanceForRentExemption(82),
@@ -33,31 +36,28 @@ function App() {
                 TOKEN_PROGRAM_ID,
                 mint.publicKey,
                 0,
-                testMasterSecretKeyWallet.publicKey,
+                testMasterWallet.publicKey,
                 null
             ),
         ];
         let tx = new web3.Transaction().add(...instructions)
-        // tx.feePayer = testMasterSecretKeyWallet.payer.publicKey
-        // console.log('testMasterSecretKeyWallet.payer.publicKey: ', testMasterSecretKeyWallet.payer.publicKey.toBase58())
+        tx.feePayer = testMasterWallet.payer.publicKey
+        console.log('testMasterWallet.payer.publicKey: ', testMasterWallet.payer.publicKey.toBase58())
 
-        tx.feePayer = testMasterRecoverKeyWallet.payer.publicKey
-        console.log('testMasterRecoverKeyWallet.payer.publicKey: ', testMasterRecoverKeyWallet.payer.publicKey.toBase58())
+        // tx.feePayer = testRecoverWallet.payer.publicKey
+        console.log('testRecoverWallet.payer.publicKey: ', testRecoverWallet.payer.publicKey.toBase58())
 
         tx.recentBlockhash = (await connection.getRecentBlockhash()).blockhash
 
-        const balance = await connection.getBalance(testMasterSecretKeyWallet.payer.publicKey)
-        const accInfo = await connection.getAccountInfo(testMasterSecretKeyWallet.payer.publicKey)
-        console.log('balance: ', balance)
-        console.log('accInfo: ', accInfo)
-        await testMasterSecretKeyWallet.signTransaction(tx)
-        console.log('tx: ', tx)
+        await testMasterWallet.signTransaction(tx)
+        // await testRecoverWallet.signTransaction(tx)
+        // console.log('tx: ', tx)
 
-        tx.partialSign(testMasterSecretKeyWallet.payer)
-        tx.partialSign(testMasterRecoverKeyWallet.payer)
-        tx.partialSign(mint)
+        tx.partialSign(testMasterWallet.payer)
+        tx.partialSign(testRecoverWallet.payer)
+        // tx.partialSign(mint)
         console.log('tx: ', tx)
-        // const rec = await testMasterSecretKeyProvider.send(tx)
+        // const rec = await testMasterKeyProvider.send(tx)
         // console.log('rec: ', rec)
         const rawTx = tx.serialize()
 
@@ -65,7 +65,7 @@ function App() {
         const receipt = await connection.sendRawTransaction(rawTx)
         console.log('receipt: ', receipt)
         alert(`create bic success bic address: ${mint.publicKey.toBase58()}`)
-        // const txResult = await testMasterSecretKeyProvider.send(tx)
+        // const txResult = await testMasterKeyProvider.send(tx)
         // console.log('txResult: ', txResult)
 
     }
