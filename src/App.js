@@ -10,29 +10,58 @@ function App() {
     const testMasterRecoverKey = '5rfnMoHXULH1fvcvdeBNwNLCJjDrNjd5UoqQZiNxzxJ1DFXTAWj8HRJNzxh4kaoeSnjZvaGZ8yLYAvuX7W1SEfxQ'
     const bicSpl = null
     const [newKeypair, setNewKeypair] = useState({})
-    const testMasterSecretKeyProvider = new Wallet(web3.Keypair.fromSecretKey(Base58.encode("testMasterSecretKey")))
+    const testMasterSecretKeyWallet = new Wallet(web3.Keypair.fromSecretKey(Base58.decode(testMasterSecretKey)))
+    const testMasterRecoverKeyWallet = new Wallet(web3.Keypair.fromSecretKey(Base58.decode(testMasterRecoverKey)))
+    const connection = new web3.Connection("http://127.0.0.1:8899/")
+    // const testMasterSecretKeyProvider = new Provider(connection, testMasterSecretKeyWallet, {})
+
     // Logic function
+    const bicPublicKey = 'DM6TvKdR7izbUqEb9xEdA77he9t6vimiKZT6Lqvt24YV'
     const createBic = async () => {
         const mint = web3.Keypair.generate();
-        const keypair = web3.Keypair.generate()
-        const lamportss = await Provider.connection.getMinimumBalanceForRentExemption(82)
-        console.log('lamportss: ', lamportss)
+        console.log('mint: ', mint.publicKey.toBase58())
+        console.log('lamport: ', await connection.getMinimumBalanceForRentExemption(82))
         let instructions = [
             web3.SystemProgram.createAccount({
-                fromPubkey: keypair.publicKey,
-                newAccountPubkey: mint,
+                fromPubkey: testMasterSecretKeyWallet.publicKey,
+                newAccountPubkey: mint.publicKey,
                 space: 82,
-                lamports: await Provider.connection.getMinimumBalanceForRentExemption(82),
+                lamports: await connection.getMinimumBalanceForRentExemption(82),
                 programId: TOKEN_PROGRAM_ID,
             }),
             Token.createInitMintInstruction(
                 TOKEN_PROGRAM_ID,
                 mint.publicKey,
                 0,
-                testMasterSecretKeyProvider.publicKey,
+                testMasterSecretKeyWallet.publicKey,
                 null
             ),
         ];
+        let tx = new web3.Transaction().add(...instructions)
+        tx.feePayer = testMasterSecretKeyWallet.payer.publicKey
+        console.log('testMasterSecretKeyWallet.payer.publicKey: ', testMasterSecretKeyWallet.payer.publicKey.toBase58())
+        tx.recentBlockhash = (await connection.getRecentBlockhash()).blockhash
+
+        const balance = await connection.getBalance(testMasterSecretKeyWallet.payer.publicKey)
+        const accInfo = await connection.getAccountInfo(testMasterSecretKeyWallet.payer.publicKey)
+        console.log('balance: ', balance)
+        console.log('accInfo: ', accInfo)
+        await testMasterSecretKeyWallet.signTransaction(tx)
+        console.log('tx: ', tx)
+
+        tx.partialSign(testMasterSecretKeyWallet.payer)
+        tx.partialSign(mint)
+        console.log('tx: ', tx)
+        // const rec = await testMasterSecretKeyProvider.send(tx)
+        // console.log('rec: ', rec)
+        const rawTx = tx.serialize()
+        console.log('rawTx: ', rawTx)
+        const receipt = await connection.sendRawTransaction(rawTx)
+        console.log('receipt: ', receipt)
+        alert(`create bic success bic address: ${mint.publicKey.toBase58()}`)
+        // const txResult = await testMasterSecretKeyProvider.send(tx)
+        // console.log('txResult: ', txResult)
+
     }
     // Effect function
 
