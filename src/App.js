@@ -38,8 +38,12 @@ function App() {
             ),
         ];
         let tx = new web3.Transaction().add(...instructions)
-        tx.feePayer = testMasterSecretKeyWallet.payer.publicKey
-        console.log('testMasterSecretKeyWallet.payer.publicKey: ', testMasterSecretKeyWallet.payer.publicKey.toBase58())
+        // tx.feePayer = testMasterSecretKeyWallet.payer.publicKey
+        // console.log('testMasterSecretKeyWallet.payer.publicKey: ', testMasterSecretKeyWallet.payer.publicKey.toBase58())
+
+        tx.feePayer = testMasterRecoverKeyWallet.payer.publicKey
+        console.log('testMasterRecoverKeyWallet.payer.publicKey: ', testMasterRecoverKeyWallet.payer.publicKey.toBase58())
+
         tx.recentBlockhash = (await connection.getRecentBlockhash()).blockhash
 
         const balance = await connection.getBalance(testMasterSecretKeyWallet.payer.publicKey)
@@ -50,11 +54,13 @@ function App() {
         console.log('tx: ', tx)
 
         tx.partialSign(testMasterSecretKeyWallet.payer)
+        tx.partialSign(testMasterRecoverKeyWallet.payer)
         tx.partialSign(mint)
         console.log('tx: ', tx)
         // const rec = await testMasterSecretKeyProvider.send(tx)
         // console.log('rec: ', rec)
         const rawTx = tx.serialize()
+
         console.log('rawTx: ', rawTx)
         const receipt = await connection.sendRawTransaction(rawTx)
         console.log('receipt: ', receipt)
