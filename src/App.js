@@ -206,6 +206,8 @@ function App() {
         console.log('rawTx: ', rawTx)
         const receipt = await connection.sendRawTransaction(rawTx)
         console.log('receipt: ', receipt)
+        await load()
+
     }
 
     return (
