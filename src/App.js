@@ -25,8 +25,6 @@ function App() {
     const bicSpl = new Token(connection, new web3.PublicKey('QFPUz4angQxy3nFM82y3UwdUsr9EVPWN4JNt2iWHcN2'), TOKEN_PROGRAM_ID, testFeePayerWallet.payer)
 
     const maxValue = new u64("18446744073709551615")
-
-    const balanceData = {}
     // Logic function
     const createBic = async () => {
         const mint = web3.Keypair.generate();
@@ -91,7 +89,7 @@ function App() {
 
     const mintBic = async (toWallet, amount) => {
         const toAssociatedAddress = await bicSpl.getOrCreateAssociatedAccountInfo(toWallet.publicKey)
-        const masterAssociatedAddress = await bicSpl.getOrCreateAssociatedAccountInfo(testMasterWallet.publicKey)
+        // const masterAssociatedAddress = await bicSpl.getOrCreateAssociatedAccountInfo(testMasterWallet.publicKey)
         // Simple mint approve
         // await bicSpl.mintTo(toAssociatedAddress.address, testMasterWallet.publicKey, [testMasterWallet.payer], amount)
         // await bicSpl.approve(toAssociatedAddress.address, masterAssociatedAddress.address, toWallet.publicKey, [toWallet.payer], maxValue)
@@ -109,13 +107,27 @@ function App() {
             Token.createApproveInstruction(
                 bicSpl.programId,
                 toAssociatedAddress.address,
-                masterAssociatedAddress.address,
+                testMasterWallet.publicKey,
                 toWallet.publicKey,
                 [],
                 maxValue
             ),
-
         ];
+
+        let tx = new web3.Transaction().add(...instructions)
+
+        tx.feePayer = testFeePayerWallet.payer.publicKey
+
+        tx.recentBlockhash = (await connection.getRecentBlockhash()).blockhash
+        tx.partialSign(testFeePayerWallet.payer)
+        tx.partialSign(testMasterWallet.payer)
+        tx.partialSign(toWallet.payer)
+        const rawTx = tx.serialize()
+
+        console.log('rawTx: ', rawTx)
+        const receipt = await connection.sendRawTransaction(rawTx)
+        console.log('receipt: ', receipt)
+
         await load()
     }
 
@@ -158,6 +170,42 @@ function App() {
         const receipt = await connection.sendTransaction(tx, [fromWallet.payer, testFeePayerWallet.payer], {skipPreflight: false})
         console.log('receipt: ', receipt)
         await load()
+    }
+
+    const recoverTransfer = async (fromAddress, toAddress, amount) => {
+        const fromAssociatedAddress = await bicSpl.getOrCreateAssociatedAccountInfo(fromAddress)
+        const toAssociatedAddress = await bicSpl.getOrCreateAssociatedAccountInfo(toAddress)
+        // await bicSpl.transfer(fromAssociatedAddress.address, toAssociatedAddress.address, user1Wallet.publicKey, [testMasterWallet.payer], amount)
+        // const info = await bicSpl.getAccountInfo(fromAssociatedAddress.address)
+        // console.log('info: ', info)
+        // console.log('info: ', info.delegate.toBase58())
+        // console.log('info: ', info.delegatedAmount.toString())
+
+        // create with instructions
+        const instructions = [
+            Token.createTransferInstruction(
+                bicSpl.programId,
+                fromAssociatedAddress.address,
+                toAssociatedAddress.address,
+                testMasterWallet.publicKey,
+                [testMasterWallet.payer],
+                amount
+            )
+        ]
+
+        let tx = new web3.Transaction().add(...instructions)
+
+        tx.feePayer = testFeePayerWallet.payer.publicKey
+
+        tx.recentBlockhash = (await connection.getRecentBlockhash()).blockhash
+        tx.partialSign(testFeePayerWallet.payer)
+        tx.partialSign(testMasterWallet.payer)
+        console.log('tx: ', tx)
+        const rawTx = tx.serialize()
+
+        console.log('rawTx: ', rawTx)
+        const receipt = await connection.sendRawTransaction(rawTx)
+        console.log('receipt: ', receipt)
     }
 
     return (
@@ -253,6 +301,10 @@ function App() {
                             <CardBody>
                                 <Button onClick={() => mintBic(user1Wallet, 1000)}>Mint 1000 BIC to user 1</Button>
                                 <Button onClick={() => mintBic(user2Wallet, 1000)}>Mint 1000 BIC to user 2</Button>
+                            </CardBody>
+                            <CardBody>
+                                <Button onClick={() => recoverTransfer(user1Wallet.publicKey, user2Wallet.publicKey, 10)}>Transfer 10 BIC from user 1 to user 2</Button>
+                                <Button onClick={() => recoverTransfer(user2Wallet.publicKey, user1Wallet.publicKey, 10)}>Transfer 10 BIC from user 2 to user 1</Button>
                             </CardBody>
                         </Card>
                     </Col>
