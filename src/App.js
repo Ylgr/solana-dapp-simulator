@@ -1,5 +1,5 @@
 import {useState} from 'react';
-import {Col, Row, Label, Button, Container, Card, CardBody, CardText, CardTitle} from 'reactstrap';
+import {Col, Row, Label, Button, Collapse, Card, CardBody, CardText, CardTitle} from 'reactstrap';
 import {web3, Wallet, Provider, BN} from '@project-serum/anchor';
 import Base58 from 'base-58';
 import { TOKEN_PROGRAM_ID, Token, u64 } from "@solana/spl-token";
@@ -11,6 +11,8 @@ function App() {
     const [newKeypair, setNewKeypair] = useState({})
     const [balances, setBalances] = useState([0,0,0,0])
     const [bicInfo, setBicInfo] = useState({})
+    const [signatureLog, setSignatureLog] = useState([]);
+    const [isShowLog, setIsShowLow] = useState(false);
 
     // 3rpycwRea4yGvcE5inQNX1eut4wEpeVCZohkEiBXY3PB
     const testFeePayerWallet = new Wallet(web3.Keypair.fromSecretKey(Base58.decode(testFeePayerSecretKey)))
@@ -68,6 +70,11 @@ function App() {
         console.log('rawTx: ', rawTx)
         const receipt = await connection.sendRawTransaction(rawTx)
         console.log('receipt: ', receipt)
+        setSignatureLog(signatureLog.concat(receipt))
+        // const status = (await connection.confirmTransaction(receipt)).value;
+        // console.log('status: ', status)
+        // const txInfo = await connection.getTransaction(receipt, {commitment: "confirmed"})
+        // console.log('txInfo: ', txInfo)
         alert(`create bic success bic address: ${mint.publicKey.toBase58()}`)
         // const txResult = await testFeePayerKeyProvider.send(tx)
         // console.log('txResult: ', txResult)
@@ -127,7 +134,7 @@ function App() {
         console.log('rawTx: ', rawTx)
         const receipt = await connection.sendRawTransaction(rawTx)
         console.log('receipt: ', receipt)
-
+        setSignatureLog(signatureLog.concat(receipt))
         await load()
     }
 
@@ -168,6 +175,7 @@ function App() {
         console.log('tx: ', tx)
 
         const receipt = await connection.sendTransaction(tx, [fromWallet.payer, testFeePayerWallet.payer], {skipPreflight: false})
+        setSignatureLog(signatureLog.concat(receipt))
         console.log('receipt: ', receipt)
         await load()
     }
@@ -206,8 +214,47 @@ function App() {
         console.log('rawTx: ', rawTx)
         const receipt = await connection.sendRawTransaction(rawTx)
         console.log('receipt: ', receipt)
+        setSignatureLog(signatureLog.concat(receipt))
         await load()
 
+    }
+
+    const createBicAssociatedAccount = async (keypair) => {
+        const bicAssociatedPublicKey = await Token.getAssociatedTokenAddress(
+            bicSpl.associatedProgramId,
+            bicSpl.programId,
+            bicSpl.publicKey,
+            keypair.publicKey
+            // new web3.PublicKey("2B8SUxUHwUMCaGBR564L5KLDGJ7SyjbZDzXZifbvrhdv")
+        )
+        console.log('bicAssociatedPublicKey: ', bicAssociatedPublicKey.toBase58())
+
+        const accountInfo = await bicSpl.getAccountInfo(bicAssociatedPublicKey)
+        console.log('accountInfo: ', accountInfo)
+        if(accountInfo && accountInfo.owner) {
+            alert(`Cannot create account because it own by ${accountInfo.owner.toBase58()}`)
+        } else {
+            const tx = new web3.Transaction().add(Token.createAssociatedTokenAccountInstruction(
+                bicSpl.associatedProgramId,
+                bicSpl.programId,
+                bicSpl.publicKey,
+                bicAssociatedPublicKey,
+                keypair.publicKey,
+                testFeePayerWallet.publicKey
+            ))
+            tx.feePayer = testFeePayerWallet.payer.publicKey
+            tx.recentBlockhash = (await connection.getRecentBlockhash()).blockhash
+            tx.partialSign(testFeePayerWallet.payer)
+            console.log('tx: ', tx)
+
+            const rawTx = tx.serialize()
+
+            const receipt = await connection.sendRawTransaction(rawTx)
+            console.log('receipt: ', receipt)
+
+            setSignatureLog(signatureLog.concat(receipt))
+            alert(`Create account ${bicAssociatedPublicKey.toBase58()}`)
+        }
     }
 
     return (
@@ -219,6 +266,7 @@ function App() {
                     <Button onClick={() => {
                         setNewKeypair(web3.Keypair.generate())
                     }}>Generate</Button>
+                    {newKeypair.publicKey && <Button onClick={() => createBicAssociatedAccount(newKeypair)}>Create BIC Associated Account</Button>}
                 </Col>
                 <Col>
                     <h4>Secret key: {newKeypair.secretKey && Base58.encode(newKeypair.secretKey)}</h4>
@@ -226,6 +274,18 @@ function App() {
                 </Col>
 
             </Row>
+            <Row>
+                <Label>Signature logs</Label>
+                <Button onClick={() => setIsShowLow(!isShowLog)}>Show signature logs</Button>
+                <Collapse isOpen={isShowLog}>
+                    <Card>
+                        <CardBody>
+                            {signatureLog.map(e => <CardText>{e}</CardText>)}
+                        </CardBody>
+                    </Card>
+                </Collapse>
+            </Row>
+
             <Row>
                 <Label>Spl token</Label>
                 <Card>
