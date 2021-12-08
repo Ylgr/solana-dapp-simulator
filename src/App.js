@@ -18,13 +18,14 @@ function App() {
     const testFeePayerWallet = new Wallet(web3.Keypair.fromSecretKey(Base58.decode(testFeePayerSecretKey)))
     // 8HZtsjLbS5dim8ULfVv83XQ6xp4oMph2FpzmsLbg2aC4
     const testMasterWallet = new Wallet(web3.Keypair.fromSecretKey(Base58.decode(testMasterSecretKey)))
-    const connection = new web3.Connection("http://127.0.0.1:8899/")
+    // const connection = new web3.Connection("http://127.0.0.1:8899/") //local net
+    const connection = new web3.Connection("https://api.devnet.solana.com/") // dev net
 
     // 2B8SUxUHwUMCaGBR564L5KLDGJ7SyjbZDzXZifbvrhdv
     const user1Wallet = new Wallet(web3.Keypair.fromSecretKey(Base58.decode('4EHnNBG9jfvU2RE5bgXd9Fzn6bbKTnDdvVeQmJScpLTFyMyAy7QcLdnLuxEz7fqJLbHdZg6pZggGmumPX8hbA5Qg')))
     // 6qbhYEGCMihaQiRt66oTMDgvCm2VY23vJsETGN6rs8z1
     const user2Wallet = new Wallet(web3.Keypair.fromSecretKey(Base58.decode('4TQEhMh7ujM8yoEKxEv6d5dWciCPhErAMP2FuLS2xTX9B3VrwZUDJVubVVby46yQGkcmWD2vvcv7pyrQDJxu96yb')))
-    const bicSpl = new Token(connection, new web3.PublicKey('QFPUz4angQxy3nFM82y3UwdUsr9EVPWN4JNt2iWHcN2'), TOKEN_PROGRAM_ID, testFeePayerWallet.payer)
+    const bicSpl = new Token(connection, new web3.PublicKey('TVS2vUYedu5SPHzanWVKWmoQKGbwPeuT3QB9JBpCrLm'), TOKEN_PROGRAM_ID, testFeePayerWallet.payer)
 
     const maxValue = new u64("18446744073709551615")
     // Logic function
@@ -81,7 +82,11 @@ function App() {
 
     }
 
-    const load = async () => {
+    const load = async (signature) => {
+        if(signature) {
+            const status = (await connection.confirmTransaction(signature)).value;
+            console.log('status: ', status)
+        }
         setBalances(await Promise.all([
             connection.getBalance(user1Wallet.publicKey),
             connection.getBalance(user2Wallet.publicKey),
@@ -135,7 +140,7 @@ function App() {
         const receipt = await connection.sendRawTransaction(rawTx)
         console.log('receipt: ', receipt)
         setSignatureLog(signatureLog.concat(receipt))
-        await load()
+        await load(receipt)
     }
 
     const transferBIC = async (fromWallet, toAddress, amount) => {
@@ -177,7 +182,7 @@ function App() {
         const receipt = await connection.sendTransaction(tx, [fromWallet.payer, testFeePayerWallet.payer], {skipPreflight: false})
         setSignatureLog(signatureLog.concat(receipt))
         console.log('receipt: ', receipt)
-        await load()
+        await load(receipt)
     }
 
     const recoverTransfer = async (fromAddress, toAddress, amount) => {
@@ -215,7 +220,7 @@ function App() {
         const receipt = await connection.sendRawTransaction(rawTx)
         console.log('receipt: ', receipt)
         setSignatureLog(signatureLog.concat(receipt))
-        await load()
+        await load(receipt)
 
     }
 
@@ -229,7 +234,7 @@ function App() {
         )
         console.log('bicAssociatedPublicKey: ', bicAssociatedPublicKey.toBase58())
 
-        const accountInfo = await bicSpl.getAccountInfo(bicAssociatedPublicKey)
+        const accountInfo = await connection.getAccountInfo(bicAssociatedPublicKey)
         console.log('accountInfo: ', accountInfo)
         if(accountInfo && accountInfo.owner) {
             alert(`Cannot create account because it own by ${accountInfo.owner.toBase58()}`)
@@ -312,7 +317,7 @@ function App() {
                             <CardBody>
                                 <CardTitle>User 1</CardTitle>
                                 <CardTitle>Address: {user1Wallet.publicKey.toBase58()}</CardTitle>
-                                <CardText>Balances: {balances[0]} SOL</CardText>
+                                <CardText>Balances: {balances[0]} nSOL</CardText>
                                 <CardTitle>BIC Associated Address: {balances[4] && balances[4].address.toBase58()}</CardTitle>
                                 <CardTitle>BIC balance: {balances[4] && balances[4].amount.toString()} BIC</CardTitle>
                             </CardBody>
@@ -326,7 +331,7 @@ function App() {
                             <CardBody>
                                 <CardTitle>User 2</CardTitle>
                                 <CardTitle>Address: {user2Wallet.publicKey.toBase58()}</CardTitle>
-                                <CardText>Balances: {balances[1]} SOL</CardText>
+                                <CardText>Balances: {balances[1]} nSOL</CardText>
                                 <CardTitle>BIC Associated Address: {balances[5] && balances[5].address.toBase58()}</CardTitle>
                                 <CardTitle>BIC balance: {balances[5] && balances[5].amount.toString()} BIC</CardTitle>
                             </CardBody>
@@ -343,8 +348,8 @@ function App() {
                             <CardBody>
                                 <CardTitle>FeePayer wallet</CardTitle>
                                 <CardTitle>Address: {testFeePayerWallet.publicKey.toBase58()}</CardTitle>
-                                <CardText>Balances: {balances[2]} SOL</CardText>
-                                <CardText>{balances[2]} BIC</CardText>
+                                <CardText>Balances: {balances[2]} nSOL</CardText>
+                                <CardText>{balances[2]/Math.pow(10,9)} SOL</CardText>
                                 <CardTitle>BIC Associated Address: {balances[6] && balances[6].address.toBase58()}</CardTitle>
                                 <CardTitle>BIC balance: {balances[6] && balances[6].amount.toString()} BIC</CardTitle>
                             </CardBody>
@@ -357,8 +362,8 @@ function App() {
                             <CardBody>
                                 <CardTitle>Master (Recover) wallet</CardTitle>
                                 <CardTitle>Address: {testMasterWallet.publicKey.toBase58()}</CardTitle>
-                                <CardText>Balances: {balances[3]} SOL</CardText>
-                                <CardText>{balances[3]} BIC</CardText>
+                                <CardText>Balances: {balances[3]} nSOL</CardText>
+                                <CardText>{balances[3]/Math.pow(10,9)} SOL</CardText>
                             </CardBody>
                             <CardBody>
                                 <Button onClick={() => mintBic(user1Wallet, 1000)}>Mint 1000 BIC to user 1</Button>
