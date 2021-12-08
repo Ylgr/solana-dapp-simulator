@@ -1,5 +1,5 @@
 import {useState} from 'react';
-import {Col, Row, Label, Button, Collapse, Card, CardBody, CardText, CardTitle} from 'reactstrap';
+import {Col, Row, Label, Button, Collapse, Card, CardBody, CardText, CardTitle, CardLink} from 'reactstrap';
 import {web3, Wallet, Provider, BN} from '@project-serum/anchor';
 import Base58 from 'base-58';
 import { TOKEN_PROGRAM_ID, Token, u64 } from "@solana/spl-token";
@@ -285,7 +285,7 @@ function App() {
                 <Collapse isOpen={isShowLog}>
                     <Card>
                         <CardBody>
-                            {signatureLog.map(e => <CardText>{e}</CardText>)}
+                            {signatureLog.map(e => <CardLink href={`https://explorer.solana.com/tx/${e}?cluster=devnet`} target="_blank">{e}</CardLink>)}
                         </CardBody>
                     </Card>
                 </Collapse>
