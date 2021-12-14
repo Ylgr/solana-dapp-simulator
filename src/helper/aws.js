@@ -73,6 +73,6 @@ export async function awsUpload(
         'application/json',
         updatedManifestBuffer,
     );
-
+    console.log(metadataUrl)
     return metadataUrl;
 }

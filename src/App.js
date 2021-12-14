@@ -1,12 +1,13 @@
-import {useState} from 'react';
+import {useEffect, useState} from 'react';
 import {Col, Row, Label, Button, Collapse, Card, CardBody, CardText, CardTitle, CardLink, Input} from 'reactstrap';
 import {web3, Wallet, Provider, BN} from '@project-serum/anchor';
 import Base58 from 'base-58';
 import { TOKEN_PROGRAM_ID, Token, u64 } from "@solana/spl-token";
-import { Connection, Account, programs, actions } from '@metaplex/js';
-import {awsUpload} from "./helper/aws"
-import exampleContent from './asset/0.json'
-const { metaplex: { Store, AuctionManager, WhitelistedCreator }, metadata: { Metadata }, auction: { Auction }, vault: { Vault } } = programs;
+import { actions, NodeWallet } from '@metaplex/js';
+import {awsUpload} from "./helper/aws";
+import exampleContent from './assets/0.json';
+import { Metadata, MetadataKey, MasterEdition } from '@metaplex-foundation/mpl-token-metadata';
+
 function App() {
     // State
     const testFeePayerSecretKey = 'EGeG7Q6j8DedNW1ayFJW6a1eqUYCVobJ3CkKMxGPUb3vZLfHJhYDy2YrY8bwrNy2kZvqRPduFn8KXUUxJtqEPB3'
@@ -17,6 +18,9 @@ function App() {
     const [signatureLog, setSignatureLog] = useState([]);
     const [isShowLog, setIsShowLow] = useState(false);
     const [nftImg, setNftImg] = useState(null)
+    
+    const [nftCollection, setnftCollection] = useState([]);
+    const [list, setList] = useState([])
 
     // 3rpycwRea4yGvcE5inQNX1eut4wEpeVCZohkEiBXY3PB
     const testFeePayerWallet = new Wallet(web3.Keypair.fromSecretKey(Base58.decode(testFeePayerSecretKey)))
@@ -32,6 +36,26 @@ function App() {
     const bicSpl = new Token(connection, new web3.PublicKey('TVS2vUYedu5SPHzanWVKWmoQKGbwPeuT3QB9JBpCrLm'), TOKEN_PROGRAM_ID, testFeePayerWallet.payer)
 
     const maxValue = new u64("18446744073709551615")
+
+
+
+    useEffect(() => {
+        fetchData();
+    });
+
+    async function fetchData() {
+        const metadata = await Metadata.findMany(connection, {
+            creators: ['2B8SUxUHwUMCaGBR564L5KLDGJ7SyjbZDzXZifbvrhdv'],
+        });
+        setnftCollection(...metadata);
+        
+        let myList = [];
+        metadata.forEach((data, index) => {
+            myList.push(<li key={index}><a href={`https://solscan.io/token/${data.data.mint}?cluster=devnet`}>{data.data.mint}</a></li>)
+        })
+        setList(myList);
+    }
+
     // Logic function
     const createBic = async () => {
         const mint = web3.Keypair.generate();
@@ -288,17 +312,21 @@ function App() {
 
 
         // if(nftImg) {
-        const manifestBuffer = Buffer.from(JSON.stringify(exampleContent));
-        const res = await awsUpload(
-            'cf-templates-2x0bag69sidh-us-west-2',
-            '0.jpg',
-            manifestBuffer,
-            nftImg
-        )
-
-        const newNft = await Store
-        // }
-
+        // const manifestBuffer = Buffer.from(JSON.stringify(exampleContent));
+        // const res = await awsUpload(
+        //     'cf-templates-2x0bag69sidh-us-west-2',
+        //     '0.jpg',
+        //     manifestBuffer,
+        //     nftImg
+        // )
+        const mintResp = await actions.mintNFT({
+            connection, 
+            wallet: user1Wallet, 
+            uri: "https://cf-templates-2x0bag69sidh-us-west-2.s3.amazonaws.com/assets/0.json", 
+            maxSupply: 5
+        });
+        console.log(mintResp);
+        await fetchData();
     }
 
     return (
@@ -422,6 +450,12 @@ function App() {
                     setNftImg(event.target.files[0])
                 }}/>
                 <Button onClick={() => createNFT()}>Create NFT</Button>
+            </Row>
+            <Row>
+                <Label>NFTs of 2B8SUxUHwUMCaGBR564L5KLDGJ7SyjbZDzXZifbvrhdv</Label>
+                <ul>
+                    {list}
+                </ul>
             </Row>
         </div>
     );
