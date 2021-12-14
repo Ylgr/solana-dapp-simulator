@@ -1,0 +1,24 @@
+{
+  "name": "Tokyo",
+  "symbol": "",
+  "description": "Nothing",
+  "seller_fee_basis_points": 1000,
+  "image": "0.jpg",
+  "attributes": [],
+  "external_url": "",
+  "properties": {
+    "files": [
+      {
+        "uri": "0.jpg",
+        "type": "image/jpg"
+      }
+    ],
+    "category": "image",
+    "creators": [
+      {
+        "address": "2B8SUxUHwUMCaGBR564L5KLDGJ7SyjbZDzXZifbvrhdv",
+        "share": 100
+      }
+    ]
+  }
+}

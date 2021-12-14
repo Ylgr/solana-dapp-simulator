@@ -1,9 +1,12 @@
 import {useState} from 'react';
-import {Col, Row, Label, Button, Collapse, Card, CardBody, CardText, CardTitle, CardLink} from 'reactstrap';
+import {Col, Row, Label, Button, Collapse, Card, CardBody, CardText, CardTitle, CardLink, Input} from 'reactstrap';
 import {web3, Wallet, Provider, BN} from '@project-serum/anchor';
 import Base58 from 'base-58';
 import { TOKEN_PROGRAM_ID, Token, u64 } from "@solana/spl-token";
-
+import { Connection, Account, programs, actions } from '@metaplex/js';
+import {awsUpload} from "./helper/aws"
+import exampleContent from './asset/0.json'
+const { metaplex: { Store, AuctionManager, WhitelistedCreator }, metadata: { Metadata }, auction: { Auction }, vault: { Vault } } = programs;
 function App() {
     // State
     const testFeePayerSecretKey = 'EGeG7Q6j8DedNW1ayFJW6a1eqUYCVobJ3CkKMxGPUb3vZLfHJhYDy2YrY8bwrNy2kZvqRPduFn8KXUUxJtqEPB3'
@@ -13,6 +16,7 @@ function App() {
     const [bicInfo, setBicInfo] = useState({})
     const [signatureLog, setSignatureLog] = useState([]);
     const [isShowLog, setIsShowLow] = useState(false);
+    const [nftImg, setNftImg] = useState(null)
 
     // 3rpycwRea4yGvcE5inQNX1eut4wEpeVCZohkEiBXY3PB
     const testFeePayerWallet = new Wallet(web3.Keypair.fromSecretKey(Base58.decode(testFeePayerSecretKey)))
@@ -262,6 +266,41 @@ function App() {
         }
     }
 
+    const createNFT = async () => {
+        // const whitelistedCreators = [
+        //     new WhitelistedCreator({
+        //         address: testMasterWallet.publicKey.toBase58(),
+        //         activated: true,
+        //     })
+        // ]
+        // const store = await actions.initStore({
+        //     connection,
+        //     wallet: testFeePayerWallet,
+        //     isPublic: false
+        // })
+        // const storeId = await Store.getPDA("VFy5tiPpcK7LN7ieTEL9at7NRuSXKdZadX7LtXMNUZo");
+
+        // const storeId = await Store.getPDA(testFeePayerWallet.publicKey);
+        // console.log('storeId: ', storeId.toString())
+        // const store = await Store.load(connection, storeId);
+        //
+        // console.log('st: ', await store.getWhitelistedCreators(connection))
+
+
+        // if(nftImg) {
+        const manifestBuffer = Buffer.from(JSON.stringify(exampleContent));
+        const res = await awsUpload(
+            'cf-templates-2x0bag69sidh-us-west-2',
+            '0.jpg',
+            manifestBuffer,
+            nftImg
+        )
+
+        const newNft = await Store
+        // }
+
+    }
+
     return (
         <div className="App">
             <Row>
@@ -378,7 +417,11 @@ function App() {
                 </Row>
             </Row>
             <Row>
-
+                <Label>NFT Creation</Label>
+                <Input type="file" onChange={(event) => {
+                    setNftImg(event.target.files[0])
+                }}/>
+                <Button onClick={() => createNFT()}>Create NFT</Button>
             </Row>
         </div>
     );
