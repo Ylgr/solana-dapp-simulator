@@ -7,6 +7,19 @@ import { actions, NodeWallet } from '@metaplex/js';
 import {awsUpload} from "./helper/aws";
 import exampleContent from './assets/0.json';
 import { Metadata, MetadataKey, MasterEdition } from '@metaplex-foundation/mpl-token-metadata';
+import {
+    CreateAuctionV2,
+    CreateAuctionV2Args,
+    CreateAuction,
+    CreateAuctionArgs,
+    PriceFloor,
+    PriceFloorType,
+    WinnerLimit,
+    WinnerLimitType,
+    Auction,
+    AuctionExtended,
+    Vault
+  } from '@metaplex-foundation/mpl-auction';
 
 function App() {
     // State
@@ -21,6 +34,7 @@ function App() {
     
     const [nftCollection, setnftCollection] = useState([]);
     const [list, setList] = useState([])
+    const [auctionNFT, setAuctionNFT] = useState('')
 
     // 3rpycwRea4yGvcE5inQNX1eut4wEpeVCZohkEiBXY3PB
     const testFeePayerWallet = new Wallet(web3.Keypair.fromSecretKey(Base58.decode(testFeePayerSecretKey)))
@@ -37,7 +51,9 @@ function App() {
 
     const maxValue = new u64("18446744073709551615")
 
-
+    //5qhYVwGSYK6Thc4VQkoa5yZD9tVBaG1GuXarrARqNe4W
+    const storeAdminSecretKey = '1nWWVwhKB3PTMmKAf7rJm3rkEH4FL5EeVJ89HeiYtAgQEgQb1oT7v3YPsfVPjxdJi5PtRJPKKwDHA19ffF9DCkW';
+    const storeAdminWallet = new Wallet(web3.Keypair.fromSecretKey(Base58.decode(storeAdminSecretKey)));
 
     useEffect(() => {
         fetchData();
@@ -45,7 +61,7 @@ function App() {
 
     async function fetchData() {
         const metadata = await Metadata.findMany(connection, {
-            creators: ['2B8SUxUHwUMCaGBR564L5KLDGJ7SyjbZDzXZifbvrhdv'],
+            creators: ['5qhYVwGSYK6Thc4VQkoa5yZD9tVBaG1GuXarrARqNe4W'],
         });
         setnftCollection(...metadata);
         
@@ -279,7 +295,7 @@ function App() {
             tx.recentBlockhash = (await connection.getRecentBlockhash()).blockhash
             tx.partialSign(testFeePayerWallet.payer)
             console.log('tx: ', tx)
-
+            
             const rawTx = tx.serialize()
 
             const receipt = await connection.sendRawTransaction(rawTx)
@@ -312,21 +328,71 @@ function App() {
 
 
         // if(nftImg) {
-        // const manifestBuffer = Buffer.from(JSON.stringify(exampleContent));
-        // const res = await awsUpload(
-        //     'cf-templates-2x0bag69sidh-us-west-2',
-        //     '0.jpg',
-        //     manifestBuffer,
-        //     nftImg
-        // )
+        const manifestBuffer = Buffer.from(JSON.stringify(exampleContent));
+        const res = await awsUpload(
+            'cf-templates-2x0bag69sidh-us-west-2',
+            '0.jpg',
+            manifestBuffer,
+            nftImg
+        )
         const mintResp = await actions.mintNFT({
             connection, 
-            wallet: user1Wallet, 
-            uri: "https://cf-templates-2x0bag69sidh-us-west-2.s3.amazonaws.com/assets/0.json", 
+            wallet: storeAdminWallet, // admin 
+            uri: res, 
             maxSupply: 5
         });
         console.log(mintResp);
         await fetchData();
+    }
+
+    const createAuction = async () => {
+        console.log(auctionNFT) //FxkmLbEKQfJXcpFA2nDUwh8CJ7s4qFZxFA3CwhFMytiS
+        const pubKey = web3.Keypair.generate().publicKey;
+        console.log(pubKey) //TODO: assign owner to auction programID
+        const accountInfo = await connection.getAccountInfo(pubKey)
+        console.log('accountInfo', accountInfo)
+        // const autionPDA = new Auction().getPDA();
+        // console.log('autionPDA', autionPDA);
+
+        // const extendedPubKey = web3.Keypair.generate().publicKey;
+        // const auctionExtendPDA = new AuctionExtended(extendedPubKey).getPDA();
+        // console.log('auctionExtendPDA', auctionExtendPDA);
+
+        // const vaultPubkey = web3.Keypair.generate().publicKey;
+        // const vaultPDA = await (new Vault(vaultPubkey)).getPDA();
+        // console.log('vaultPDA', vaultPDA);
+
+        const tx = {
+            feePayer: storeAdminWallet.payer.publicKey,
+            recentBlockhash: (await connection.getRecentBlockhash()).blockhash
+        }
+
+        // const data = new CreateAuction(tx, {
+        //     auction: pubKey,
+        //     auctionExtended: extendedPubKey,
+        //     creator: storeAdminWallet.payer.publicKey,
+        //     args: new CreateAuctionArgs({
+        //       winners: new WinnerLimit({ type: WinnerLimitType.Capped, usize: new BN(1) }),
+        //       endAuctionAt: new BN(1639633052),
+        //       auctionGap: new BN(1),
+        //       tokenMint: auctionNFT,
+        //       authority: storeAdminWallet.payer.publicKey.toString(),
+        //       resource: vaultPubkey.toString(), //vault
+        //       priceFloor: new PriceFloor({ type: PriceFloorType.Minimum }),
+        //       tickSize: new BN(10),
+        //       gapTickSizePercentage: 1,
+        //       instantSalePrice: new BN(2),
+        //       name: null,
+        //     }),
+        //   });
+        
+        // data.partialSign(storeAdminWallet.payer)
+        // console.log(data);
+        // const serializeConfig = { requireAllSignatures: false };
+
+        // const rawTx = data.serialize(serializeConfig);
+        // const receipt = await connection.sendRawTransaction(rawTx);
+        // console.log(receipt);
     }
 
     return (
@@ -452,10 +518,17 @@ function App() {
                 <Button onClick={() => createNFT()}>Create NFT</Button>
             </Row>
             <Row>
-                <Label>NFTs of 2B8SUxUHwUMCaGBR564L5KLDGJ7SyjbZDzXZifbvrhdv</Label>
+                <Label>NFTs of 5qhYVwGSYK6Thc4VQkoa5yZD9tVBaG1GuXarrARqNe4W</Label>
                 <ul>
                     {list}
                 </ul>
+            </Row>
+            <Row>
+                <Label>Pick a NFT to auction sale</Label>
+                <Input type="text" placeholder='NFT address' onChange={(event) => {
+                    setAuctionNFT(event.target.value);
+                }}></Input>
+                <Button onClick={() => createAuction()}>Create auction</Button>
             </Row>
         </div>
     );
