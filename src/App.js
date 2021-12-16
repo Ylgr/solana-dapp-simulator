@@ -345,14 +345,57 @@ function App() {
         await fetchData();
     }
 
+    const assignNewOwner = async (auctionKeypair, programID) => {
+        programID = new web3.PublicKey(programID);
+        const instructions = [
+            web3.SystemProgram.assign({
+                accountPubkey: auctionKeypair.publicKey,
+                programId: programID
+            })
+        ]
+
+        let tx = new web3.Transaction().add(...instructions)
+        tx.feePayer = auctionKeypair.publicKey
+
+        tx.recentBlockhash = (await connection.getRecentBlockhash()).blockhash
+
+        tx.partialSign(auctionKeypair)
+
+        console.log('tx: ', tx)
+        const rawTx = tx.serialize()
+        console.log('rawTx: ', rawTx)
+        const receipt = await connection.sendRawTransaction(rawTx)
+        console.log('receipt: ', receipt)
+    }
+
+    const sleep = async (ms) => {
+        return new Promise(resolve => {
+            setTimeout(resolve, ms)
+        })
+    }
+
     const createAuction = async () => {
         console.log(auctionNFT) //FxkmLbEKQfJXcpFA2nDUwh8CJ7s4qFZxFA3CwhFMytiS
-        const pubKey = web3.Keypair.generate().publicKey;
-        console.log(pubKey) //TODO: assign owner to auction programID
-        const accountInfo = await connection.getAccountInfo(pubKey)
-        console.log('accountInfo', accountInfo)
-        // const autionPDA = new Auction().getPDA();
-        // console.log('autionPDA', autionPDA);
+        const auctionKeypair = web3.Keypair.generate();
+        console.log(auctionKeypair.publicKey.toString());
+        // Fund account
+        const txHash = await connection.requestAirdrop(
+            auctionKeypair.publicKey,
+            web3.LAMPORTS_PER_SOL,
+        );
+        await sleep(6000);
+        console.log('airdrop', txHash);
+        await assignNewOwner(auctionKeypair, 'auctxRXPeJoc4817jDhf4HbjnhEcr1cCXenosMhK5R8')
+
+        let auctionAccountInfo = await connection.getAccountInfo(auctionKeypair.publicKey)
+        auctionAccountInfo = {
+            ...auctionAccountInfo,
+            data: Buffer.from(new Uint8Array(32)) //TODO: data should have "mint", "owner", "amount"
+        }
+        console.log('accountInfo', auctionAccountInfo)
+
+        const autionPDA = new Auction(auctionKeypair.publicKey, auctionAccountInfo).getPDA();
+        console.log('autionPDA', autionPDA);
 
         // const extendedPubKey = web3.Keypair.generate().publicKey;
         // const auctionExtendPDA = new AuctionExtended(extendedPubKey).getPDA();
