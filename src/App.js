@@ -12,7 +12,7 @@ import {
     MasterEdition,
     Creator,
     MetadataDataData,
-    CreateMetadata, CreateMasterEdition
+    CreateMetadata, CreateMasterEdition,
 } from '@metaplex-foundation/mpl-token-metadata';
 // import {
 //     CreateAuctionV2,
@@ -314,6 +314,14 @@ function App() {
         }
     }
 
+    function fromCombined(transactions, options = {}) {
+        const combinedTransaction = new web3.Transaction(options);
+        transactions.forEach((transaction) => transaction.instructions.forEach((instruction) => {
+            combinedTransaction.add(instruction);
+        }));
+        return combinedTransaction;
+    }
+
     async function prepareTokenAccountAndMintTxs(
         connection,
         owner,
@@ -325,7 +333,8 @@ function App() {
             {
                 newAccountPubkey: mint.publicKey,
                 lamports: mintRent,
-                owner: owner
+                owner: owner,
+                freezeAuthority: owner
             },
         );
 
@@ -424,18 +433,31 @@ function App() {
             },
         );
 
-        const txId = await actions.sendTransaction({
-            connection,
-            signers: [mint, testFeePayerWallet.payer],
-            txs: [
-                createMintTx,
-                createMetadataTx,
-                createAssociatedTokenAccountTx,
-                mintToTx,
-                masterEditionTx,
-            ],
-            wallet,
-        });
+        const finalTx = fromCombined([
+            createMintTx,
+            createMetadataTx,
+            createAssociatedTokenAccountTx,
+            mintToTx,
+            masterEditionTx,
+        ], { feePayer: testFeePayerWallet.publicKey })
+        finalTx.recentBlockhash = (await connection.getRecentBlockhash()).blockhash;
+
+        finalTx.partialSign(mint)
+        finalTx.partialSign(testFeePayerWallet.payer)
+        finalTx.partialSign(wallet.payer)
+        const txId = await connection.sendRawTransaction(finalTx.serialize())
+        // const txId = await actions.sendTransaction({
+        //     connection,
+        //     signers: [mint, testFeePayerWallet.payer],
+        //     txs: [
+        //         createMintTx,
+        //         createMetadataTx,
+        //         createAssociatedTokenAccountTx,
+        //         mintToTx,
+        //         masterEditionTx,
+        //     ],
+        //     wallet,
+        // });
         console.log('txId: ', txId)
         return {
             txId,
