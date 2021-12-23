@@ -2,24 +2,31 @@ import {useEffect, useState} from 'react';
 import {Col, Row, Label, Button, Collapse, Card, CardBody, CardText, CardTitle, CardLink, Input} from 'reactstrap';
 import {web3, Wallet, Provider, BN} from '@project-serum/anchor';
 import Base58 from 'base-58';
-import { TOKEN_PROGRAM_ID, Token, u64 } from "@solana/spl-token";
-import { actions, NodeWallet } from '@metaplex/js';
+import { TOKEN_PROGRAM_ID, Token, u64, ASSOCIATED_TOKEN_PROGRAM_ID } from "@solana/spl-token";
+import { actions, NodeWallet, utils, programs } from '@metaplex/js';
 import {awsUpload} from "./helper/aws";
 import exampleContent from './assets/0.json';
-import { Metadata, MetadataKey, MasterEdition } from '@metaplex-foundation/mpl-token-metadata';
 import {
-    CreateAuctionV2,
-    CreateAuctionV2Args,
-    CreateAuction,
-    CreateAuctionArgs,
-    PriceFloor,
-    PriceFloorType,
-    WinnerLimit,
-    WinnerLimitType,
-    Auction,
-    AuctionExtended,
-    Vault
-  } from '@metaplex-foundation/mpl-auction';
+    Metadata,
+    MetadataKey,
+    MasterEdition,
+    Creator,
+    MetadataDataData,
+    CreateMetadata, CreateMasterEdition
+} from '@metaplex-foundation/mpl-token-metadata';
+// import {
+//     CreateAuctionV2,
+//     CreateAuctionV2Args,
+//     CreateAuction,
+//     CreateAuctionArgs,
+//     PriceFloor,
+//     PriceFloorType,
+//     WinnerLimit,
+//     WinnerLimitType,
+//     Auction,
+//     AuctionExtended,
+//     Vault
+//   } from '@metaplex-foundation/mpl-auction';
 
 function App() {
     // State
@@ -31,7 +38,7 @@ function App() {
     const [signatureLog, setSignatureLog] = useState([]);
     const [isShowLog, setIsShowLow] = useState(false);
     const [nftImg, setNftImg] = useState(null)
-    
+
     const [nftCollection, setnftCollection] = useState([]);
     const [list, setList] = useState([])
     const [auctionNFT, setAuctionNFT] = useState('')
@@ -52,19 +59,20 @@ function App() {
     const maxValue = new u64("18446744073709551615")
 
     //5qhYVwGSYK6Thc4VQkoa5yZD9tVBaG1GuXarrARqNe4W
-    const storeAdminSecretKey = '1nWWVwhKB3PTMmKAf7rJm3rkEH4FL5EeVJ89HeiYtAgQEgQb1oT7v3YPsfVPjxdJi5PtRJPKKwDHA19ffF9DCkW';
+    // const storeAdminSecretKey = '1nWWVwhKB3PTMmKAf7rJm3rkEH4FL5EeVJ89HeiYtAgQEgQb1oT7v3YPsfVPjxdJi5PtRJPKKwDHA19ffF9DCkW';
+    const storeAdminSecretKey = 'wbeBnLnYPW5ThW96HWVRqomr98zdkUUFTh2goec25xCNAGFAhHzmHxBguTtCM4sFvdDEABVdxgVVbvt8Yz3F7KG';
     const storeAdminWallet = new Wallet(web3.Keypair.fromSecretKey(Base58.decode(storeAdminSecretKey)));
 
-    useEffect(() => {
-        fetchData();
-    });
+    // useEffect(() => {
+    //     fetchData();
+    // });
 
     async function fetchData() {
         const metadata = await Metadata.findMany(connection, {
             creators: ['5qhYVwGSYK6Thc4VQkoa5yZD9tVBaG1GuXarrARqNe4W'],
         });
         setnftCollection(...metadata);
-        
+
         let myList = [];
         metadata.forEach((data, index) => {
             myList.push(<li key={index}><a href={`https://solscan.io/token/${data.data.mint}?cluster=devnet`}>{data.data.mint}</a></li>)
@@ -295,7 +303,7 @@ function App() {
             tx.recentBlockhash = (await connection.getRecentBlockhash()).blockhash
             tx.partialSign(testFeePayerWallet.payer)
             console.log('tx: ', tx)
-            
+
             const rawTx = tx.serialize()
 
             const receipt = await connection.sendRawTransaction(rawTx)
@@ -306,137 +314,192 @@ function App() {
         }
     }
 
-    const createNFT = async () => {
-        // const whitelistedCreators = [
-        //     new WhitelistedCreator({
-        //         address: testMasterWallet.publicKey.toBase58(),
-        //         activated: true,
-        //     })
-        // ]
-        // const store = await actions.initStore({
-        //     connection,
-        //     wallet: testFeePayerWallet,
-        //     isPublic: false
-        // })
-        // const storeId = await Store.getPDA("VFy5tiPpcK7LN7ieTEL9at7NRuSXKdZadX7LtXMNUZo");
-
-        // const storeId = await Store.getPDA(testFeePayerWallet.publicKey);
-        // console.log('storeId: ', storeId.toString())
-        // const store = await Store.load(connection, storeId);
-        //
-        // console.log('st: ', await store.getWhitelistedCreators(connection))
-
-
-        // if(nftImg) {
-        const manifestBuffer = Buffer.from(JSON.stringify(exampleContent));
-        const res = await awsUpload(
-            'cf-templates-2x0bag69sidh-us-west-2',
-            '0.jpg',
-            manifestBuffer,
-            nftImg
-        )
-        const mintResp = await actions.mintNFT({
-            connection, 
-            wallet: storeAdminWallet, // admin 
-            uri: res, 
-            maxSupply: 5
-        });
-        console.log(mintResp);
-        await fetchData();
-    }
-
-    const assignNewOwner = async (auctionKeypair, programID) => {
-        programID = new web3.PublicKey(programID);
-        const instructions = [
-            web3.SystemProgram.assign({
-                accountPubkey: auctionKeypair.publicKey,
-                programId: programID
-            })
-        ]
-
-        let tx = new web3.Transaction().add(...instructions)
-        tx.feePayer = auctionKeypair.publicKey
-
-        tx.recentBlockhash = (await connection.getRecentBlockhash()).blockhash
-
-        tx.partialSign(auctionKeypair)
-
-        console.log('tx: ', tx)
-        const rawTx = tx.serialize()
-        console.log('rawTx: ', rawTx)
-        const receipt = await connection.sendRawTransaction(rawTx)
-        console.log('receipt: ', receipt)
-    }
-
-    const sleep = async (ms) => {
-        return new Promise(resolve => {
-            setTimeout(resolve, ms)
-        })
-    }
-
-    const createAuction = async () => {
-        console.log(auctionNFT) //FxkmLbEKQfJXcpFA2nDUwh8CJ7s4qFZxFA3CwhFMytiS
-        const auctionKeypair = web3.Keypair.generate();
-        console.log(auctionKeypair.publicKey.toString());
-        // Fund account
-        const txHash = await connection.requestAirdrop(
-            auctionKeypair.publicKey,
-            web3.LAMPORTS_PER_SOL,
+    async function prepareTokenAccountAndMintTxs(
+        connection,
+        owner,
+    ) {
+        const mint = web3.Keypair.generate();
+        const mintRent = await connection.getMinimumBalanceForRentExemption(82);
+        const createMintTx = new programs.CreateMint(
+            { feePayer: testFeePayerWallet.publicKey },
+            {
+                newAccountPubkey: mint.publicKey,
+                lamports: mintRent,
+                owner: owner
+            },
         );
-        await sleep(6000);
-        console.log('airdrop', txHash);
-        await assignNewOwner(auctionKeypair, 'auctxRXPeJoc4817jDhf4HbjnhEcr1cCXenosMhK5R8')
 
-        let auctionAccountInfo = await connection.getAccountInfo(auctionKeypair.publicKey)
-        auctionAccountInfo = {
-            ...auctionAccountInfo,
-            data: Buffer.from(new Uint8Array(32)) //TODO: data should have "mint", "owner", "amount"
-        }
-        console.log('accountInfo', auctionAccountInfo)
+        const recipient = await Token.getAssociatedTokenAddress(
+            ASSOCIATED_TOKEN_PROGRAM_ID,
+            TOKEN_PROGRAM_ID,
+            mint.publicKey,
+            owner,
+        );
 
-        const autionPDA = new Auction(auctionKeypair.publicKey, auctionAccountInfo).getPDA();
-        console.log('autionPDA', autionPDA);
+        const createAssociatedTokenAccountTx = new programs.CreateAssociatedTokenAccount(
+            { feePayer: testFeePayerWallet.publicKey },
+            {
+                associatedTokenAddress: recipient,
+                splTokenMintAddress: mint.publicKey,
+                walletAddress: owner
+            },
+        );
 
-        // const extendedPubKey = web3.Keypair.generate().publicKey;
-        // const auctionExtendPDA = new AuctionExtended(extendedPubKey).getPDA();
-        // console.log('auctionExtendPDA', auctionExtendPDA);
+        const mintToTx = new programs.MintTo(
+            { feePayer: testFeePayerWallet.publicKey },
+            {
+                mint: mint.publicKey,
+                dest: recipient,
+                amount: 1,
+                authority: owner
+            },
+        );
 
-        // const vaultPubkey = web3.Keypair.generate().publicKey;
-        // const vaultPDA = await (new Vault(vaultPubkey)).getPDA();
-        // console.log('vaultPDA', vaultPDA);
-
-        const tx = {
-            feePayer: storeAdminWallet.payer.publicKey,
-            recentBlockhash: (await connection.getRecentBlockhash()).blockhash
-        }
-
-        // const data = new CreateAuction(tx, {
-        //     auction: pubKey,
-        //     auctionExtended: extendedPubKey,
-        //     creator: storeAdminWallet.payer.publicKey,
-        //     args: new CreateAuctionArgs({
-        //       winners: new WinnerLimit({ type: WinnerLimitType.Capped, usize: new BN(1) }),
-        //       endAuctionAt: new BN(1639633052),
-        //       auctionGap: new BN(1),
-        //       tokenMint: auctionNFT,
-        //       authority: storeAdminWallet.payer.publicKey.toString(),
-        //       resource: vaultPubkey.toString(), //vault
-        //       priceFloor: new PriceFloor({ type: PriceFloorType.Minimum }),
-        //       tickSize: new BN(10),
-        //       gapTickSizePercentage: 1,
-        //       instantSalePrice: new BN(2),
-        //       name: null,
-        //     }),
-        //   });
-        
-        // data.partialSign(storeAdminWallet.payer)
-        // console.log(data);
-        // const serializeConfig = { requireAllSignatures: false };
-
-        // const rawTx = data.serialize(serializeConfig);
-        // const receipt = await connection.sendRawTransaction(rawTx);
-        // console.log(receipt);
+        return { mint, createMintTx, createAssociatedTokenAccountTx, mintToTx, recipient };
     }
+
+
+    const createNFT = async () => {
+        const uri = "https://aecwobcvprkxm2kgewrjduk5jd5uqzywxcmru6z6wms2tifhxwkq.arweave.net/AQVnBFV8VXZpRiWikdFdSPtIZxa4mRp7PrMlqaCnvZU/"
+        const wallet = storeAdminWallet;
+        const maxSupply = 5
+
+        const { mint, createMintTx, createAssociatedTokenAccountTx, mintToTx } =
+            await prepareTokenAccountAndMintTxs(connection, wallet.publicKey);
+
+        const metadataPDA = await Metadata.getPDA(mint.publicKey);
+        const editionPDA = await MasterEdition.getPDA(mint.publicKey);
+
+        const {
+            name,
+            symbol,
+            seller_fee_basis_points,
+            properties: { creators },
+        } = await utils.metadata.lookup(uri);
+
+        const creatorsData = creators.reduce((memo, { address, share }) => {
+            const verified = address === wallet.publicKey.toString();
+
+            const creator = new Creator({
+                address,
+                share,
+                verified,
+            });
+
+            memo = [...memo, creator];
+
+            return memo;
+        }, []);
+
+        const metadataData = new MetadataDataData({
+            name,
+            symbol,
+            uri,
+            sellerFeeBasisPoints: seller_fee_basis_points,
+            creators: creatorsData,
+        });
+
+        const createMetadataTx = new CreateMetadata(
+            {
+                feePayer: testFeePayerWallet.publicKey,
+            },
+            {
+                metadata: metadataPDA,
+                metadataData,
+                updateAuthority: wallet.publicKey,
+                mint: mint.publicKey,
+                mintAuthority: wallet.publicKey,
+            },
+        );
+
+        const masterEditionTx = new CreateMasterEdition(
+            { feePayer: testFeePayerWallet.publicKey },
+            {
+                edition: editionPDA,
+                metadata: metadataPDA,
+                updateAuthority: wallet.publicKey,
+                mint: mint.publicKey,
+                mintAuthority: wallet.publicKey,
+                maxSupply: maxSupply ? new BN(maxSupply) : null,
+            },
+        );
+
+        const txId = await actions.sendTransaction({
+            connection,
+            signers: [mint, testFeePayerWallet.payer],
+            txs: [
+                createMintTx,
+                createMetadataTx,
+                createAssociatedTokenAccountTx,
+                mintToTx,
+                masterEditionTx,
+            ],
+            wallet,
+        });
+        console.log('txId: ', txId)
+        return {
+            txId,
+            mint: mint.publicKey,
+            metadata: metadataPDA,
+            edition: editionPDA,
+        };
+
+    }
+
+    async function makeAuction(
+        wallet,
+        vault,
+        auctionSettings,
+    ) {
+        const signers = [];
+        const instructions = [];
+        // const auctionKey = (
+        //     await web3.PublicKey.findProgramAddress(
+        //         [
+        //             Buffer.from(AUCTION_PREFIX),
+        //             toPublicKey(PROGRAM_IDS.auction).toBuffer(),
+        //             toPublicKey(vault).toBuffer(),
+        //         ],
+        //         toPublicKey(PROGRAM_IDS.auction),
+        //     )
+        // )[0];
+        //
+        // const fullSettings = new CreateAuctionArgs({
+        //     ...auctionSettings,
+        //     authority: wallet.publicKey.toBase58(),
+        //     resource: vault,
+        // });
+
+        // createAuction(fullSettings, wallet.publicKey.toBase58(), instructions);
+        //
+        // return { instructions, signers, auction: auctionKey };
+    }
+
+    //
+    // const createAuction = async () => {
+    //     const {
+    //         externalPriceAccount,
+    //         priceMint,
+    //         instructions: epaInstructions,
+    //         signers: epaSigners,
+    //     } = await actions.createExternalPriceAccount({connection, wallet: testFeePayerWallet});
+    //
+    //     const {
+    //         instructions: createVaultInstructions,
+    //         signers: createVaultSigners,
+    //         vault,
+    //         fractionalMint,
+    //         redeemTreasury,
+    //         fractionTreasury,
+    //     } = await actions.createVault({connection, wallet: testFeePayerWallet, priceMint, externalPriceAccount});
+    //
+    //     const {
+    //         instructions: makeAuctionInstructions,
+    //         signers: makeAuctionSigners,
+    //         auction,
+    //     } = await makeAuction(wallet, vault, auctionSettings);
+    //
+    // }
 
     return (
         <div className="App">
@@ -571,7 +634,7 @@ function App() {
                 <Input type="text" placeholder='NFT address' onChange={(event) => {
                     setAuctionNFT(event.target.value);
                 }}></Input>
-                <Button onClick={() => createAuction()}>Create auction</Button>
+                {/*<Button onClick={() => createAuction()}>Create auction</Button>*/}
             </Row>
         </div>
     );

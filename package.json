@@ -4,7 +4,8 @@
   "private": true,
   "dependencies": {
     "@aws-sdk/client-s3": "^3.44.0",
-    "@metaplex/js": "^4.10.0",
+    "@metaplex-foundation/mpl-token-metadata": "^0.0.2",
+    "@metaplex/js": "^4.10.1",
     "@project-serum/anchor": "^0.18.2",
     "@solana/spl-token": "^0.1.8",
     "@testing-library/jest-dom": "^5.11.4",
