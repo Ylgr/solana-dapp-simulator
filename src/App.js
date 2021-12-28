@@ -2,8 +2,14 @@ import {useEffect, useState} from 'react';
 import {Col, Row, Label, Button, Collapse, Card, CardBody, CardText, CardTitle, CardLink, Input} from 'reactstrap';
 import {web3, Wallet, Provider, BN} from '@project-serum/anchor';
 import Base58 from 'base-58';
-import { TOKEN_PROGRAM_ID, Token, u64, ASSOCIATED_TOKEN_PROGRAM_ID } from "@solana/spl-token";
+import { TOKEN_PROGRAM_ID, Token, u64, ASSOCIATED_TOKEN_PROGRAM_ID, NATIVE_MINT, AccountLayout, MintLayout } from "@solana/spl-token";
+import {
+    Keypair,
+    PublicKey,
+    SystemProgram,
+} from '@solana/web3.js';
 import { actions, NodeWallet, utils, programs } from '@metaplex/js';
+import {programIds} from './ids';
 import {awsUpload} from "./helper/aws";
 import exampleContent from './assets/0.json';
 import {
@@ -13,20 +19,24 @@ import {
     Creator,
     MetadataDataData,
     CreateMetadata, CreateMasterEdition,
+
 } from '@metaplex-foundation/mpl-token-metadata';
-// import {
-//     CreateAuctionV2,
-//     CreateAuctionV2Args,
-//     CreateAuction,
-//     CreateAuctionArgs,
-//     PriceFloor,
-//     PriceFloorType,
-//     WinnerLimit,
-//     WinnerLimitType,
-//     Auction,
-//     AuctionExtended,
-//     Vault
-//   } from '@metaplex-foundation/mpl-auction';
+import {
+    CreateAuction,
+    CreateAuctionArgs,
+    PriceFloor,
+    PriceFloorType,
+    WinnerLimit,
+    WinnerLimitType
+} from "@metaplex-foundation/mpl-auction";
+
+import {
+    ExternalPriceAccountData,
+    Vault,
+    VaultProgram,
+    UpdateExternalPriceAccount, InitVault,
+} from '@metaplex-foundation/mpl-token-vault';
+import {Transaction} from "@metaplex-foundation/mpl-core";
 
 function App() {
     // State
@@ -40,7 +50,6 @@ function App() {
     const [nftImg, setNftImg] = useState(null)
 
     const [nftCollection, setnftCollection] = useState([]);
-    const [list, setList] = useState([])
     const [auctionNFT, setAuctionNFT] = useState('')
 
     // 3rpycwRea4yGvcE5inQNX1eut4wEpeVCZohkEiBXY3PB
@@ -63,21 +72,12 @@ function App() {
     const storeAdminSecretKey = 'wbeBnLnYPW5ThW96HWVRqomr98zdkUUFTh2goec25xCNAGFAhHzmHxBguTtCM4sFvdDEABVdxgVVbvt8Yz3F7KG';
     const storeAdminWallet = new Wallet(web3.Keypair.fromSecretKey(Base58.decode(storeAdminSecretKey)));
 
-    // useEffect(() => {
-    //     fetchData();
-    // });
-
-    async function fetchData() {
+    async function fetchNftData() {
         const metadata = await Metadata.findMany(connection, {
-            creators: ['5qhYVwGSYK6Thc4VQkoa5yZD9tVBaG1GuXarrARqNe4W'],
+            creators: [storeAdminWallet.publicKey],
         });
-        setnftCollection(...metadata);
-
-        let myList = [];
-        metadata.forEach((data, index) => {
-            myList.push(<li key={index}><a href={`https://solscan.io/token/${data.data.mint}?cluster=devnet`}>{data.data.mint}</a></li>)
-        })
-        setList(myList);
+        console.log('metadata: ', metadata)
+        setnftCollection(metadata);
     }
 
     // Logic function
@@ -135,20 +135,21 @@ function App() {
     }
 
     const load = async (signature) => {
-        if(signature) {
-            const status = (await connection.confirmTransaction(signature)).value;
-            console.log('status: ', status)
-        }
-        setBalances(await Promise.all([
-            connection.getBalance(user1Wallet.publicKey),
-            connection.getBalance(user2Wallet.publicKey),
-            connection.getBalance(testFeePayerWallet.publicKey),
-            connection.getBalance(testMasterWallet.publicKey),
-            bicSpl.getOrCreateAssociatedAccountInfo(user1Wallet.publicKey),
-            bicSpl.getOrCreateAssociatedAccountInfo(user2Wallet.publicKey),
-            bicSpl.getOrCreateAssociatedAccountInfo(testFeePayerWallet.publicKey),
-        ]))
-        setBicInfo(await bicSpl.getMintInfo())
+        // if(signature) {
+        //     const status = (await connection.confirmTransaction(signature)).value;
+        //     console.log('status: ', status)
+        // }
+        // setBalances(await Promise.all([
+        //     connection.getBalance(user1Wallet.publicKey),
+        //     connection.getBalance(user2Wallet.publicKey),
+        //     connection.getBalance(testFeePayerWallet.publicKey),
+        //     connection.getBalance(testMasterWallet.publicKey),
+        //     bicSpl.getOrCreateAssociatedAccountInfo(user1Wallet.publicKey),
+        //     bicSpl.getOrCreateAssociatedAccountInfo(user2Wallet.publicKey),
+        //     bicSpl.getOrCreateAssociatedAccountInfo(testFeePayerWallet.publicKey),
+        // ]))
+        // setBicInfo(await bicSpl.getMintInfo())
+        fetchNftData()
     }
 
     const mintBic = async (toWallet, amount) => {
@@ -473,58 +474,227 @@ function App() {
         vault,
         auctionSettings,
     ) {
+        const PROGRAM_IDS = programIds();
+
         const signers = [];
         const instructions = [];
-        // const auctionKey = (
-        //     await web3.PublicKey.findProgramAddress(
-        //         [
-        //             Buffer.from(AUCTION_PREFIX),
-        //             toPublicKey(PROGRAM_IDS.auction).toBuffer(),
-        //             toPublicKey(vault).toBuffer(),
-        //         ],
-        //         toPublicKey(PROGRAM_IDS.auction),
-        //     )
-        // )[0];
-        //
-        // const fullSettings = new CreateAuctionArgs({
-        //     ...auctionSettings,
-        //     authority: wallet.publicKey.toBase58(),
-        //     resource: vault,
-        // });
+        const auctionKey = (
+            await web3.PublicKey.findProgramAddress(
+                [
+                    Buffer.from('auction'),
+                    new web3.PublicKey(PROGRAM_IDS.auction).toBuffer(),
+                    new web3.PublicKey(vault).toBuffer(),
+                ],
+                new web3.PublicKey(PROGRAM_IDS.auction),
+            )
+        )[0];
 
-        // createAuction(fullSettings, wallet.publicKey.toBase58(), instructions);
-        //
-        // return { instructions, signers, auction: auctionKey };
+        const auctionKeyExtend = (
+            await web3.PublicKey.findProgramAddress(
+                [
+                    Buffer.from('auction'),
+                    new web3.PublicKey(PROGRAM_IDS.auction).toBuffer(),
+                    new web3.PublicKey(vault).toBuffer(),
+                    Buffer.from('extended'),
+                ],
+                new web3.PublicKey(PROGRAM_IDS.auction),
+            )
+        )[0];
+        const fullSettings = new CreateAuctionArgs({
+            ...auctionSettings,
+            authority: wallet.publicKey.toBase58(),
+            resource: vault,
+        });
+
+
+        const auctionTx = new CreateAuction({}, {
+            auction: auctionKey,
+            auctionExtended: auctionKeyExtend,
+            creator: wallet.publicKey,
+            args: fullSettings
+        });
+        console.log('auctionTx: ', auctionTx)
+        return { instructions, signers, auction: auctionKey };
     }
 
-    //
-    // const createAuction = async () => {
-    //     const {
-    //         externalPriceAccount,
-    //         priceMint,
-    //         instructions: epaInstructions,
-    //         signers: epaSigners,
-    //     } = await actions.createExternalPriceAccount({connection, wallet: testFeePayerWallet});
-    //
-    //     const {
-    //         instructions: createVaultInstructions,
-    //         signers: createVaultSigners,
-    //         vault,
-    //         fractionalMint,
-    //         redeemTreasury,
-    //         fractionTreasury,
-    //     } = await actions.createVault({connection, wallet: testFeePayerWallet, priceMint, externalPriceAccount});
-    //
-    //     const {
-    //         instructions: makeAuctionInstructions,
-    //         signers: makeAuctionSigners,
-    //         auction,
-    //     } = await makeAuction(wallet, vault, auctionSettings);
-    //
-    // }
+    const createAuctionManager = async (nftInfo) => {
+
+        // // auction
+        // const auctionSettings = {
+        //     auctionGap: new BN('0a8c', 16),
+        //     endAuctionAt: new BN('2a30', 16),
+        //     gapTickSizePercentage: 36,
+        //     instantSalePrice: null,
+        //     name: null,
+        //     priceFloor: new PriceFloor({
+        //         type: PriceFloorType.Minimum,
+        //         minPrice: new BN(12),
+        //     }),
+        //     tickSize: new BN("028fa6ae00",16),
+        //     tokenMint: "kinXdEcpDQeHPEuQnqmUgtYykqKGVFq6CeVX5iAHJq6",
+        //     winners: new WinnerLimit({
+        //         type: WinnerLimitType.Unlimited,
+        //         usize: new BN(0),
+        //
+        //     }),
+        // }
+
+        // auction
+        const auctionSettings = {
+            "winners": {"type": 1, "usize": new BN("01", 16)},
+            "endAuctionAt": null,
+            "auctionGap": null,
+            "priceFloor": new PriceFloor({
+                        type: PriceFloorType.Minimum,
+                        minPrice: new BN(12),
+                    }),
+            "tokenMint": "So11111111111111111111111111111111111111112",
+            "gapTickSizePercentage": null,
+            "tickSize": null,
+            "instantSalePrice": new BN("02cb417800", 16),
+            "name": null
+        }
+
+        // Create external account price
+
+        const epaRentExempt = await connection.getMinimumBalanceForRentExemption(
+            Vault.MAX_EXTERNAL_ACCOUNT_SIZE,
+        );
+
+        const externalPriceAccount = web3.Keypair.generate();
+
+        const externalPriceAccountData = new ExternalPriceAccountData({
+            pricePerShare: new BN(0),
+            priceMint: NATIVE_MINT.toBase58(),
+            allowedToCombine: true,
+        });
+
+        const uninitializedEPA = new Transaction().add(
+            SystemProgram.createAccount({
+                fromPubkey: storeAdminWallet.publicKey,
+                newAccountPubkey: externalPriceAccount.publicKey,
+                lamports: epaRentExempt,
+                space: Vault.MAX_EXTERNAL_ACCOUNT_SIZE,
+                programId: VaultProgram.PUBKEY,
+            }),
+        );
+
+        const updateEPA = new UpdateExternalPriceAccount({ feePayer: storeAdminWallet.publicKey }, {
+            externalPriceAccount: externalPriceAccount.publicKey,
+            externalPriceAccountData,
+        });
+
+        const externalPriceAccountTx = fromCombined([uninitializedEPA, updateEPA], { feePayer: storeAdminWallet.publicKey })
+        externalPriceAccountTx.recentBlockhash = (await connection.getRecentBlockhash()).blockhash;
+
+        externalPriceAccountTx.partialSign(externalPriceAccount)
+        externalPriceAccountTx.partialSign(storeAdminWallet.payer)
+        const externalPriceAccountTxResult = await connection.sendRawTransaction(externalPriceAccountTx.serialize())
+
+        console.log('externalPriceAccountTxResult: ', externalPriceAccountTxResult)
+
+        // Create vault
+
+        const accountRent = await connection.getMinimumBalanceForRentExemption(AccountLayout.span);
+
+        const mintRent = await connection.getMinimumBalanceForRentExemption(MintLayout.span);
+
+        const vaultRent = await connection.getMinimumBalanceForRentExemption(Vault.MAX_VAULT_SIZE);
+
+
+        const vault = Keypair.generate();
+
+        const vaultAuthority = await Vault.getPDA(vault.publicKey);
+
+
+        const fractionMint = Keypair.generate();
+        const fractionMintTx = new programs.CreateMint(
+            { feePayer: storeAdminWallet.publicKey },
+            {
+                newAccountPubkey: fractionMint.publicKey,
+                lamports: mintRent,
+                owner: vaultAuthority,
+                freezeAuthority: vaultAuthority,
+            },
+        );
+
+
+        const redeemTreasury = Keypair.generate();
+        const redeemTreasuryTx = new programs.CreateTokenAccount(
+            { feePayer: storeAdminWallet.publicKey },
+            {
+                newAccountPubkey: redeemTreasury.publicKey,
+                lamports: accountRent,
+                mint: NATIVE_MINT.toBase58(),
+                owner: vaultAuthority,
+            },
+        );
+
+
+        const fractionTreasury = Keypair.generate();
+        const fractionTreasuryTx = new programs.CreateTokenAccount(
+            { feePayer: storeAdminWallet.publicKey },
+            {
+                newAccountPubkey: fractionTreasury.publicKey,
+                lamports: accountRent,
+                mint: fractionMint.publicKey,
+                owner: vaultAuthority,
+            },
+        );
+
+
+        const uninitializedVaultTx = new Transaction().add(
+            SystemProgram.createAccount({
+                fromPubkey: storeAdminWallet.publicKey,
+                newAccountPubkey: vault.publicKey,
+                lamports: vaultRent,
+                space: Vault.MAX_VAULT_SIZE,
+                programId: VaultProgram.PUBKEY,
+            }),
+        );
+
+
+        const initVaultTx = new InitVault(
+            { feePayer: storeAdminWallet.publicKey },
+            {
+                vault: vault.publicKey,
+                vaultAuthority: storeAdminWallet.publicKey,
+                fractionalTreasury: fractionTreasury.publicKey,
+                pricingLookupAddress: externalPriceAccount.publicKey,
+                redeemTreasury: redeemTreasury.publicKey,
+                fractionalMint: fractionMint.publicKey,
+                allowFurtherShareCreation: true,
+            },
+        );
+
+        const createVaultTx = fromCombined([
+            fractionMintTx,
+            redeemTreasuryTx,
+            fractionTreasuryTx,
+            uninitializedVaultTx,
+            initVaultTx
+        ],{ feePayer: storeAdminWallet.publicKey })
+
+        createVaultTx.recentBlockhash = (await connection.getRecentBlockhash()).blockhash;
+        console.log('createVaultTx: ', createVaultTx)
+        console.log('fractionMint: ', fractionMint)
+        console.log('redeemTreasury: ', redeemTreasury)
+        console.log('storeAdminWallet.payer: ', storeAdminWallet.payer)
+        createVaultTx.partialSign(storeAdminWallet.payer)
+        createVaultTx.partialSign(fractionMint)
+        createVaultTx.partialSign(redeemTreasury)
+        createVaultTx.partialSign(fractionTreasury)
+        createVaultTx.partialSign(vault)
+
+        const createVaultTxResult = await connection.sendRawTransaction(createVaultTx.serialize())
+
+        console.log('createVaultTxResult: ', createVaultTxResult)
+    }
 
     return (
         <div className="App">
+            <Row>                                <Button onClick={async () => createAuctionManager()}>Create auction</Button>
+            </Row>
             <Row>
                 <Col>
                     <Label>Generate keypair</Label>
@@ -646,17 +816,43 @@ function App() {
                 <Button onClick={() => createNFT()}>Create NFT</Button>
             </Row>
             <Row>
-                <Label>NFTs of 5qhYVwGSYK6Thc4VQkoa5yZD9tVBaG1GuXarrARqNe4W</Label>
+                <Label>NFTs of {storeAdminWallet.publicKey.toBase58()}</Label>
                 <ul>
-                    {list}
+                    {nftCollection.map((e,index) => (
+                        <Row>
+                            <Col md={8}>
+                            <Card key={'nftCollection-data-' + index}>
+                                <Row>
+                                    <Col md={6}>
+                                        <CardText>Name: {e.data.data.name}</CardText>
+                                        <CardText>Symbol: {e.data.data.symbol}</CardText>
+                                        <CardText>SellerFeeBasisPoints: {e.data.data.sellerFeeBasisPoints}</CardText>
+                                        <CardLink href={`https://solscan.io/token/${e.data.data.uri}?cluster=devnet`} target="_blank">Uri</CardLink>
+                                        <CardText>Creators: </CardText>
+                                        {e.data.data.creators.map((creator, indexInner) => <Card  key={'nftCollection-data-' + index+ '-' + indexInner}>
+                                            <CardText>{creator.address}</CardText>
+                                            <CardText>Share: {creator.share} %</CardText>
+                                            <CardText>Verified: {creator.verified}</CardText>
+                                        </Card>)}
+                                    </Col>
+                                <Col md={6}>
+                                        <CardLink href={`https://solscan.io/token/${e.data.mint}?cluster=devnet`} target="_blank">{e.data.mint}</CardLink>
+                                        <CardText>Owner: {e.info.owner.toBase58()}</CardText>
+                                        <CardText>Is Mutable: {e.data.isMutable}</CardText>
+                                        <CardText>Key: {e.data.key}</CardText>
+                                        <CardText>Mint: {e.data.mint}</CardText>
+                                        <CardText>Primary Sale Happened: {e.data.primarySaleHappened}</CardText>
+                                        <CardText>Update Authority: {e.data.updateAuthority}</CardText>
+                                </Col>
+                                </Row>
+                            </Card>
+                            </Col>
+                            <Col md={4}>
+                                <Button onClick={async () => createAuctionManager(e)}>Create auction</Button>
+                            </Col>
+                        </Row>
+                    ))}
                 </ul>
-            </Row>
-            <Row>
-                <Label>Pick a NFT to auction sale</Label>
-                <Input type="text" placeholder='NFT address' onChange={(event) => {
-                    setAuctionNFT(event.target.value);
-                }}></Input>
-                {/*<Button onClick={() => createAuction()}>Create auction</Button>*/}
             </Row>
         </div>
     );
