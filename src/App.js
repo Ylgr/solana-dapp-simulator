@@ -9,7 +9,7 @@ import {
     SystemProgram,
 } from '@solana/web3.js';
 import { actions, NodeWallet, utils, programs } from '@metaplex/js';
-import {programIds} from './ids';
+import {programIds, WRAPPED_SOL_MINT, toPublicKey} from './ids';
 import {awsUpload} from "./helper/aws";
 import exampleContent from './assets/0.json';
 import {
@@ -34,7 +34,7 @@ import {
     ExternalPriceAccountData,
     Vault,
     VaultProgram,
-    UpdateExternalPriceAccount, InitVault,
+    UpdateExternalPriceAccount, InitVault, InitVaultArgs,
 } from '@metaplex-foundation/mpl-token-vault';
 import {Transaction} from "@metaplex-foundation/mpl-core";
 
@@ -469,54 +469,6 @@ function App() {
 
     }
 
-    async function makeAuction(
-        wallet,
-        vault,
-        auctionSettings,
-    ) {
-        const PROGRAM_IDS = programIds();
-
-        const signers = [];
-        const instructions = [];
-        const auctionKey = (
-            await web3.PublicKey.findProgramAddress(
-                [
-                    Buffer.from('auction'),
-                    new web3.PublicKey(PROGRAM_IDS.auction).toBuffer(),
-                    new web3.PublicKey(vault).toBuffer(),
-                ],
-                new web3.PublicKey(PROGRAM_IDS.auction),
-            )
-        )[0];
-
-        const auctionKeyExtend = (
-            await web3.PublicKey.findProgramAddress(
-                [
-                    Buffer.from('auction'),
-                    new web3.PublicKey(PROGRAM_IDS.auction).toBuffer(),
-                    new web3.PublicKey(vault).toBuffer(),
-                    Buffer.from('extended'),
-                ],
-                new web3.PublicKey(PROGRAM_IDS.auction),
-            )
-        )[0];
-        const fullSettings = new CreateAuctionArgs({
-            ...auctionSettings,
-            authority: wallet.publicKey.toBase58(),
-            resource: vault,
-        });
-
-
-        const auctionTx = new CreateAuction({}, {
-            auction: auctionKey,
-            auctionExtended: auctionKeyExtend,
-            creator: wallet.publicKey,
-            args: fullSettings
-        });
-        console.log('auctionTx: ', auctionTx)
-        return { instructions, signers, auction: auctionKey };
-    }
-
     const createAuctionManager = async (nftInfo) => {
 
         // // auction
@@ -593,6 +545,12 @@ function App() {
 
         console.log('externalPriceAccountTxResult: ', externalPriceAccountTxResult)
 
+
+        const status = (await connection.confirmTransaction(externalPriceAccountTxResult)).value;
+        console.log('status: ', status)
+        const txInfo = await connection.getTransaction(externalPriceAccountTxResult, {commitment: "confirmed"})
+        console.log('txInfo externalPriceAccountTxResult: ', txInfo)
+
         // Create vault
 
         const accountRent = await connection.getMinimumBalanceForRentExemption(AccountLayout.span);
@@ -652,7 +610,6 @@ function App() {
                 programId: VaultProgram.PUBKEY,
             }),
         );
-
 
         const initVaultTx = new InitVault(
             { feePayer: storeAdminWallet.publicKey },

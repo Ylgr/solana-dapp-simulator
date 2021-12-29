@@ -61,3 +61,18 @@ export const programIds = () => {
     oracle: ORACLE_ID,
   };
 };
+const PubKeysInternedMap = new Map();
+
+export const toPublicKey = (key) => {
+  if (typeof key !== 'string') {
+    return key;
+  }
+
+  let result = PubKeysInternedMap.get(key);
+  if (!result) {
+    result = new web3.PublicKey(key);
+    PubKeysInternedMap.set(key, result);
+  }
+
+  return result;
+};
