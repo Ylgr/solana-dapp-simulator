@@ -27,7 +27,9 @@ import {
     PriceFloor,
     PriceFloorType,
     WinnerLimit,
-    WinnerLimitType
+    WinnerLimitType,
+    Auction,
+    AuctionExtended
 } from "@metaplex-foundation/mpl-auction";
 
 import {
@@ -35,6 +37,7 @@ import {
     Vault,
     VaultProgram,
     UpdateExternalPriceAccount, InitVault, InitVaultArgs,
+    AddTokenToInactiveVault
 } from '@metaplex-foundation/mpl-token-vault';
 import {Transaction} from "@metaplex-foundation/mpl-core";
 
@@ -135,21 +138,21 @@ function App() {
     }
 
     const load = async (signature) => {
-        // if(signature) {
-        //     const status = (await connection.confirmTransaction(signature)).value;
-        //     console.log('status: ', status)
-        // }
-        // setBalances(await Promise.all([
-        //     connection.getBalance(user1Wallet.publicKey),
-        //     connection.getBalance(user2Wallet.publicKey),
-        //     connection.getBalance(testFeePayerWallet.publicKey),
-        //     connection.getBalance(testMasterWallet.publicKey),
-        //     bicSpl.getOrCreateAssociatedAccountInfo(user1Wallet.publicKey),
-        //     bicSpl.getOrCreateAssociatedAccountInfo(user2Wallet.publicKey),
-        //     bicSpl.getOrCreateAssociatedAccountInfo(testFeePayerWallet.publicKey),
-        // ]))
-        // setBicInfo(await bicSpl.getMintInfo())
-        fetchNftData()
+        if(signature) {
+            const status = (await connection.confirmTransaction(signature)).value;
+            console.log('status: ', status)
+        }
+        setBalances(await Promise.all([
+            connection.getBalance(user1Wallet.publicKey),
+            connection.getBalance(user2Wallet.publicKey),
+            connection.getBalance(testFeePayerWallet.publicKey),
+            connection.getBalance(testMasterWallet.publicKey),
+            bicSpl.getOrCreateAssociatedAccountInfo(user1Wallet.publicKey),
+            bicSpl.getOrCreateAssociatedAccountInfo(user2Wallet.publicKey),
+            bicSpl.getOrCreateAssociatedAccountInfo(testFeePayerWallet.publicKey),
+        ]))
+        setBicInfo(await bicSpl.getMintInfo())
+        // fetchNftData()
     }
 
     const mintBic = async (toWallet, amount) => {
@@ -290,7 +293,7 @@ function App() {
         const accountInfo = await connection.getAccountInfo(bicAssociatedPublicKey)
         console.log('accountInfo: ', accountInfo)
         if(accountInfo && accountInfo.owner) {
-            alert(`Cannot create account because it own by ${accountInfo.owner.toBase58()}`)
+            // alert(`Cannot create account because it own by ${accountInfo.owner.toBase58()}`)
         } else {
             const tx = new web3.Transaction().add(Token.createAssociatedTokenAccountInstruction(
                 bicSpl.associatedProgramId,
@@ -311,8 +314,35 @@ function App() {
             console.log('receipt: ', receipt)
 
             setSignatureLog(signatureLog.concat(receipt))
-            alert(`Create account ${bicAssociatedPublicKey.toBase58()}`)
+            // alert(`Create account ${bicAssociatedPublicKey.toBase58()}`)
+
+            const status = (await connection.confirmTransaction(receipt)).value;
+            console.log('status: ', status)
+            const txInfo = await connection.getTransaction(receipt, {commitment: "confirmed"})
+            console.log('txInfo: ', txInfo)
+
+
         }
+
+        // const closeAccountTx = new web3.Transaction().add(Token.createCloseAccountInstruction(
+        //     bicSpl.programId,
+        //     bicAssociatedPublicKey,
+        //     testMasterWallet.publicKey,
+        //     keypair.publicKey,
+        //     []
+        // ))
+        // closeAccountTx.feePayer = testFeePayerWallet.payer.publicKey
+        // closeAccountTx.recentBlockhash = (await connection.getRecentBlockhash()).blockhash
+        // closeAccountTx.partialSign(testFeePayerWallet.payer)
+        // closeAccountTx.partialSign(keypair)
+        // console.log('closeAccountTx: ', closeAccountTx)
+        //
+        // const rawCloseAccountTx = closeAccountTx.serialize()
+        //
+        // const receiptCloseAccountTx = await connection.sendRawTransaction(rawCloseAccountTx)
+        // console.log('receiptCloseAccountTx: ', receiptCloseAccountTx)
+        // setSignatureLog(signatureLog.concat(receiptCloseAccountTx))
+
     }
 
     function fromCombined(transactions, options = {}) {
@@ -493,7 +523,11 @@ function App() {
 
         // auction
         const auctionSettings = {
-            "winners": {"type": 1, "usize": new BN("01", 16)},
+            "winners": new WinnerLimit({
+                type: WinnerLimitType.Capped,
+                usize: new BN(1)
+            }),
+            // "winners": {"type": 1, "usize": new BN("01", 16)},
             "endAuctionAt": null,
             "auctionGap": null,
             "priceFloor": new PriceFloor({
@@ -546,9 +580,9 @@ function App() {
         console.log('externalPriceAccountTxResult: ', externalPriceAccountTxResult)
 
 
-        const status = (await connection.confirmTransaction(externalPriceAccountTxResult)).value;
+        let status = (await connection.confirmTransaction(externalPriceAccountTxResult)).value;
         console.log('status: ', status)
-        const txInfo = await connection.getTransaction(externalPriceAccountTxResult, {commitment: "confirmed"})
+        let txInfo = await connection.getTransaction(externalPriceAccountTxResult, {commitment: "confirmed"})
         console.log('txInfo externalPriceAccountTxResult: ', txInfo)
 
         // Create vault
@@ -633,10 +667,7 @@ function App() {
         ],{ feePayer: storeAdminWallet.publicKey })
 
         createVaultTx.recentBlockhash = (await connection.getRecentBlockhash()).blockhash;
-        console.log('createVaultTx: ', createVaultTx)
-        console.log('fractionMint: ', fractionMint)
-        console.log('redeemTreasury: ', redeemTreasury)
-        console.log('storeAdminWallet.payer: ', storeAdminWallet.payer)
+
         createVaultTx.partialSign(storeAdminWallet.payer)
         createVaultTx.partialSign(fractionMint)
         createVaultTx.partialSign(redeemTreasury)
@@ -646,12 +677,63 @@ function App() {
         const createVaultTxResult = await connection.sendRawTransaction(createVaultTx.serialize())
 
         console.log('createVaultTxResult: ', createVaultTxResult)
+
+        status = (await connection.confirmTransaction(createVaultTxResult)).value;
+        console.log('status: ', status)
+        txInfo = await connection.getTransaction(createVaultTxResult, {commitment: "confirmed"})
+        console.log('txInfo createVaultTxResult: ', txInfo)
+
+        // // Add token to vault
+        // // // Create deposit box
+        //
+        // const addTokenToInactiveVaultTx = new AddTokenToInactiveVault(
+        //     { feePayer: storeAdminWallet.publicKey },
+        //     {
+        //         vault: vault.publicKey,
+        //         vaultAuthority: storeAdminWallet.publicKey,
+        //         tokenAccount: nft.box.tokenAccount,
+        //         tokenStoreAccount: PublicKey,
+        //         transferAuthority: PublicKey,
+        //         safetyDepositBox: PublicKey,
+        //         amount: BN,
+        //     }
+        // )
+
+        // Active vault
+
+
+        // // Create auction
+        // const auctionKey = await Auction.getPDA(vault.publicKey)
+        // const auctionExtendedKey = await AuctionExtended.getPDA(vault.publicKey)
+        //
+        // const fullSettings = new CreateAuctionArgs({
+        //     ...auctionSettings,
+        //     authority: storeAdminWallet.publicKey.toBase58(),
+        //     resource: vault.publicKey.toBase58(),
+        // });
+        //
+        // const createAuctionTx = new CreateAuction({ feePayer: storeAdminWallet.publicKey },{
+        //     auction: auctionKey,
+        //     auctionExtended: auctionExtendedKey,
+        //     creator: storeAdminWallet.publicKey,
+        //     args: fullSettings
+        // })
+        // createAuctionTx.recentBlockhash = (await connection.getRecentBlockhash()).blockhash;
+        //
+        // createAuctionTx.partialSign(storeAdminWallet.payer)
+        //
+        // const createAuctionTxResult = await connection.sendRawTransaction(createAuctionTx.serialize())
+        //
+        // console.log('createAuctionTxResult: ', createAuctionTxResult)
+        //
+        // status = (await connection.confirmTransaction(createAuctionTxResult)).value;
+        // console.log('status: ', status)
+        // txInfo = await connection.getTransaction(createAuctionTxResult, {commitment: "confirmed"})
+        // console.log('txInfo createAuctionTxResult: ', txInfo)
     }
 
     return (
         <div className="App">
-            <Row>                                <Button onClick={async () => createAuctionManager()}>Create auction</Button>
-            </Row>
             <Row>
                 <Col>
                     <Label>Generate keypair</Label>
