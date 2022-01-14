@@ -1,22 +1,22 @@
 {
   "files": {
-    "main.js": "/solana-dapp-simulator/static/js/main.1a8916b5.chunk.js",
-    "main.js.map": "/solana-dapp-simulator/static/js/main.1a8916b5.chunk.js.map",
-    "runtime-main.js": "/solana-dapp-simulator/static/js/runtime-main.197a144c.js",
-    "runtime-main.js.map": "/solana-dapp-simulator/static/js/runtime-main.197a144c.js.map",
+    "main.js": "/solana-dapp-simulator/static/js/main.42dab024.chunk.js",
+    "main.js.map": "/solana-dapp-simulator/static/js/main.42dab024.chunk.js.map",
+    "runtime-main.js": "/solana-dapp-simulator/static/js/runtime-main.edd034a9.js",
+    "runtime-main.js.map": "/solana-dapp-simulator/static/js/runtime-main.edd034a9.js.map",
     "static/css/2.4659568d.chunk.css": "/solana-dapp-simulator/static/css/2.4659568d.chunk.css",
-    "static/js/2.8aae7706.chunk.js": "/solana-dapp-simulator/static/js/2.8aae7706.chunk.js",
-    "static/js/2.8aae7706.chunk.js.map": "/solana-dapp-simulator/static/js/2.8aae7706.chunk.js.map",
-    "static/js/3.e611029f.chunk.js": "/solana-dapp-simulator/static/js/3.e611029f.chunk.js",
-    "static/js/3.e611029f.chunk.js.map": "/solana-dapp-simulator/static/js/3.e611029f.chunk.js.map",
+    "static/js/2.db80ac26.chunk.js": "/solana-dapp-simulator/static/js/2.db80ac26.chunk.js",
+    "static/js/2.db80ac26.chunk.js.map": "/solana-dapp-simulator/static/js/2.db80ac26.chunk.js.map",
+    "static/js/3.7ca29c99.chunk.js": "/solana-dapp-simulator/static/js/3.7ca29c99.chunk.js",
+    "static/js/3.7ca29c99.chunk.js.map": "/solana-dapp-simulator/static/js/3.7ca29c99.chunk.js.map",
     "index.html": "/solana-dapp-simulator/index.html",
     "static/css/2.4659568d.chunk.css.map": "/solana-dapp-simulator/static/css/2.4659568d.chunk.css.map",
-    "static/js/2.8aae7706.chunk.js.LICENSE.txt": "/solana-dapp-simulator/static/js/2.8aae7706.chunk.js.LICENSE.txt"
+    "static/js/2.db80ac26.chunk.js.LICENSE.txt": "/solana-dapp-simulator/static/js/2.db80ac26.chunk.js.LICENSE.txt"
   },
   "entrypoints": [
-    "static/js/runtime-main.197a144c.js",
+    "static/js/runtime-main.edd034a9.js",
     "static/css/2.4659568d.chunk.css",
-    "static/js/2.8aae7706.chunk.js",
-    "static/js/main.1a8916b5.chunk.js"
+    "static/js/2.db80ac26.chunk.js",
+    "static/js/main.42dab024.chunk.js"
   ]
 }
